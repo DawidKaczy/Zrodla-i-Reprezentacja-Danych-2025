@@ -1,0 +1,167 @@
+
+DECLARE
+    v_numer_max departments.department_id%TYPE;
+    v_nazwa_nowego departments.department_name%TYPE := 'EDUCATION';
+BEGIN
+    SELECT MAX(department_id) INTO v_numer_max FROM departments;
+    DBMS_OUTPUT.PUT_LINE(v_numer_max);
+    
+    INSERT INTO departments (department_id, department_name)
+    VALUES (v_numer_max + 10, v_nazwa_nowego);
+    
+    UPDATE departments 
+    SET location_id = 3000 
+    WHERE department_id = v_numer_max + 10;
+END;
+
+
+CREATE TABLE nowa (
+    wartosc VARCHAR2(50)
+);
+
+BEGIN
+    FOR i IN 1..10 LOOP
+        IF i NOT IN (4, 6) THEN
+            INSERT INTO nowa (wartosc) VALUES (TO_CHAR(i));
+        END IF;
+    END LOOP;
+END;
+
+
+DECLARE
+    v_kraj countries%ROWTYPE;
+BEGIN
+    SELECT * INTO v_kraj FROM countries WHERE country_id = 'CA';
+    DBMS_OUTPUT.PUT_LINE(v_kraj.country_name || ' ' || v_kraj.region_id);
+END;
+
+
+DECLARE
+    CURSOR c_pracownicy IS
+        SELECT salary, last_name FROM employees WHERE department_id = 50;
+BEGIN
+    FOR r_pracownik IN c_pracownicy LOOP
+        IF r_pracownik.salary > 3100 THEN
+            DBMS_OUTPUT.PUT_LINE(r_pracownik.last_name || ' nie dawać podwyżki');
+        ELSE
+            DBMS_OUTPUT.PUT_LINE(r_pracownik.last_name || ' dać podwyżkę');
+        END IF;
+    END LOOP;
+END;
+
+
+DECLARE
+    CURSOR c_zarobki(p_min_sal NUMBER, p_max_sal NUMBER, p_litera VARCHAR2) IS
+        SELECT salary, first_name, last_name 
+        FROM employees 
+        WHERE salary BETWEEN p_min_sal AND p_max_sal 
+        AND LOWER(first_name) LIKE '%' || LOWER(p_litera) || '%';
+BEGIN
+    FOR r_pracownik IN c_zarobki(1000, 5000, 'a') LOOP
+        DBMS_OUTPUT.PUT_LINE(r_pracownik.first_name || ' ' || r_pracownik.last_name || ' ' || r_pracownik.salary);
+    END LOOP;
+
+    FOR r_pracownik IN c_zarobki(5000, 20000, 'u') LOOP
+        DBMS_OUTPUT.PUT_LINE(r_pracownik.first_name || ' ' || r_pracownik.last_name || ' ' || r_pracownik.salary);
+    END LOOP;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE dodaj_job(
+    p_job_id IN jobs.job_id%TYPE,
+    p_job_title IN jobs.job_title%TYPE
+) IS
+BEGIN
+    INSERT INTO jobs (job_id, job_title) VALUES (p_job_id, p_job_title);
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Wystąpił błąd: ' || SQLERRM);
+END;
+
+
+BEGIN
+    dodaj_job('IT_TEST', 'Test Job Title');
+END;
+
+
+CREATE OR REPLACE PROCEDURE modyfikuj_job(
+    p_job_id IN jobs.job_id%TYPE,
+    p_new_title IN jobs.job_title%TYPE
+) IS
+    e_no_jobs_updated EXCEPTION;
+BEGIN
+    UPDATE jobs SET job_title = p_new_title WHERE job_id = p_job_id;
+    
+    IF SQL%ROWCOUNT = 0 THEN
+        RAISE e_no_jobs_updated;
+    END IF;
+EXCEPTION
+    WHEN e_no_jobs_updated THEN
+        DBMS_OUTPUT.PUT_LINE('no Jobs updated');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Wystąpił błąd: ' || SQLERRM);
+END;
+
+
+BEGIN
+    modyfikuj_job('IT_TEST', 'Updated Test Title');
+END;
+
+
+CREATE OR REPLACE PROCEDURE usun_job(
+    p_job_id IN jobs.job_id%TYPE
+) IS
+    e_no_jobs_deleted EXCEPTION;
+BEGIN
+    DELETE FROM jobs WHERE job_id = p_job_id;
+    
+    IF SQL%ROWCOUNT = 0 THEN
+        RAISE e_no_jobs_deleted;
+    END IF;
+EXCEPTION
+    WHEN e_no_jobs_deleted THEN
+        DBMS_OUTPUT.PUT_LINE('no Jobs deleted');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Wystąpił błąd: ' || SQLERRM);
+END;
+
+
+BEGIN
+    usun_job('IT_TEST');
+END;
+
+
+CREATE OR REPLACE PROCEDURE pobierz_pracownika(
+    p_emp_id IN employees.employee_id%TYPE,
+    p_salary OUT employees.salary%TYPE,
+    p_last_name OUT employees.last_name%TYPE
+) IS
+BEGIN
+    SELECT salary, last_name INTO p_salary, p_last_name
+    FROM employees
+    WHERE employee_id = p_emp_id;
+END;
+
+
+CREATE OR REPLACE PROCEDURE dodaj_pracownika(
+    p_first_name IN employees.first_name%TYPE DEFAULT 'Jan',
+    p_last_name IN employees.last_name%TYPE DEFAULT 'Kowalski',
+    p_email IN employees.email%TYPE DEFAULT 'JKOWALSK',
+    p_hire_date IN employees.hire_date%TYPE DEFAULT SYSDATE,
+    p_job_id IN employees.job_id%TYPE DEFAULT 'IT_PROG',
+    p_salary IN employees.salary%TYPE DEFAULT 5000
+) IS
+    e_zbyt_wysoka_pensja EXCEPTION;
+BEGIN
+    IF p_salary > 20000 THEN
+        RAISE e_zbyt_wysoka_pensja;
+    END IF;
+    
+    INSERT INTO employees (employee_id, first_name, last_name, email, hire_date, job_id, salary)
+    VALUES (employees_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_hire_date, p_job_id, p_salary);
+EXCEPTION
+    WHEN e_zbyt_wysoka_pensja THEN
+        DBMS_OUTPUT.PUT_LINE('Wynagrodzenie dodawanego pracownika jest wyższe niż 20000');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Wystąpił błąd: ' || SQLERRM);
+END;
