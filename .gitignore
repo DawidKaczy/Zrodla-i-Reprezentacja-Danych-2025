@@ -1,0 +1,11 @@
+# Środowisko wirtualne
+.venv/
+__pycache__/
+.idea/
+
+# Dane - to jest kluczowe!
+*.csv
+*.parquet
+1/
+chicago_bikes_ml_input.parquet
+divvy_tripdata_combined.parquet
