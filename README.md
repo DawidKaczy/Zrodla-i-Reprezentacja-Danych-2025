@@ -1,42 +1,89 @@
-# 🚴‍♂️ Predykcja Wypożyczeń Rowerów Miejskich (Chicago) - Data Pipeline & Machine Learning
+# Źródła i Reprezentacja Danych 2025
 
-## 📖 O projekcie
-Niniejszy projekt stanowi kompletny potok przetwarzania danych (Data Pipeline) mający na celu przewidywanie dziennego zapotrzebowania na rowery miejskie w Chicago. Projekt demonstruje pełen cykl życia modelu analitycznego: od automatycznej akwizycji z wielu źródeł (Kaggle API, Web Scraping, Meteostat API), poprzez zaawansowane czyszczenie i inżynierię cech (Feature Engineering), aż po budowę i ewaluację modelu predykcyjnego opartego na algorytmie **XGBoost**.
+Predykcja dziennego zapotrzebowania na rowery miejskie w Chicago. Repozytorium zawiera potok danych (pobranie, czyszczenie, cechy, model) oraz osobno ćwiczenia SQL z zajęć.
 
-Ze względu na optymalizację pamięciową i czasową I/O, w całym projekcie zrezygnowano z plików CSV na rzecz binarnego, zorientowanego kolumnowo formatu **Apache Parquet**.
+## Projekt: Chicago Bike Share
 
-## 🛠 Wykorzystane technologie
-* **Język:** Python 3.x
-* **Przetwarzanie danych:** Pandas, NumPy
-* **Machine Learning:** Scikit-learn (StandardScaler, train_test_split, metryki), XGBoost (XGBRegressor)
-* **Akwizycja danych:** Kagglehub, Requests, BeautifulSoup4 (Web Scraping), Meteostat (API)
-* **Wizualizacja:** Matplotlib, Seaborn
-* **Zarządzanie plikami:** moduły systemowe `os`, `shutil`, `glob`
+Potok łączy trzy źródła:
 
----
+- logi wypożyczeń Divvy z Kaggle (`gunnarn/chicago-bicycle-rent-usage`),
+- dni ustawowo wolne w Illinois (scraping Office Holidays),
+- pogodę ze stacji Chicago O'Hare (Meteostat).
 
-## 📂 Struktura plików i przepływ danych (Pipeline)
+Dzienne wolumeny przejazdów są zmienną objaśnianą. Model to `XGBRegressor`. Wyniki pośrednie zapisują się jako Apache Parquet, a nie CSV.
 
-Projekt podzielony jest na 7 sekwencyjnych etapów (skryptów `.py`), które należy uruchamiać w określonej kolejności:
+### Struktura
 
-* **`01.py` - Akwizycja logów rowerowych (Kaggle)**
-  Pobiera surowe pliki transakcyjne z Kaggle, łączy je w jedną główną tabelę, wymusza poprawne typowanie kluczy i usuwa szum informacyjny. Wynik jest zapisywany jako zoptymalizowany plik Parquet.
+```text
+pipeline/                 skrypty 01–07, uruchamiane po kolei
+notebooks/dokumentacja.ipynb
+data/raw/                 CSV z Kaggle (nie trafia do gita)
+data/processed/           pliki Parquet (nie trafiają do gita)
+outputs/figures/          wykresy z etapów 06 i 07
+sql/                      ćwiczenia Oracle SQL / PL/SQL
+requirements.txt
+```
 
-* **`02.py` - Walidacja temporalna**
-  Sprawdza integralność pierwszego wymiaru macierzy, dokonuje wektoryzowanej konwersji ciągów znaków na format `datetime64[ns]` oraz loguje zakres czasowy zebranych danych.
+### Instalacja
 
-* **`03.py` - Kontekst behawioralny (Web Scraping)**
-  Eksploruje tabelaryczne dane kalendarza z portalu *Office Holidays* dla zadanych lat. Pobiera dni ustawowo wolne od pracy w stanie Illinois w celu wzbogacenia modelu o zjawiska społeczne.
+Python 3.11+. W katalogu repozytorium:
 
-* **`04.py` - Akwizycja i modelowanie zmiennych pogodowych**
-  Łączy się z API `meteostat` (stacja Chicago O'Hare). Oblicza uśrednioną temperaturę i obsługuje braki danych stosując heurystykę imputacji (Forward Fill dla temperatur, wypełnianie zerami dla opadów).
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-* **`05.py` - Integracja i Inżynieria Cech (Master Dataset)**
-  Najważniejszy etap transformacji. Agreguje logi do dziennych wolumenów wypożyczeń (zmienna objaśniana $Y$). Wykonuje połączenia tabel (Inner/Left Joins). Przeprowadza One-Hot Encoding dla dni tygodnia (z redukcją pułapki zmiennych fikcyjnych) oraz standaryzację (*Z-Score Scaling*) dla cech pogodowych.
+Do notatnika dodatkowo: `pip install jupyter`.
 
-* **`06.py` - Trening i Ewaluacja Modelu XGBoost**
-  Dzieli dane na zbiory treningowe i testowe (80/20). Inicjalizuje lasy gradientowe (`XGBRegressor`) i generuje predykcję. Oblicza metryki **MAE** (Mean Absolute Error) oraz **R²** (Współczynnik Determinacji) i generuje wykres 10 najważniejszych cech decyzyjnych (Feature Importances).
+Kaggle wymaga klucza API. Najprościej plik `kaggle.json` w `%USERPROFILE%\.kaggle\` (instrukcja: [Kaggle API](https://www.kaggle.com/docs/api)).
 
-* **`07.py` - Opisowa analiza regresyjna**
-  Generuje wykresy warstwowe za pomocą biblioteki `seaborn`, obrazujące linie trendu (regresję liniową OLS z przedziałem ufności) pomiędzy warunkami atmosferycznymi a natężeniem ruchu rowerowego.
+### Uruchomienie
 
+Z katalogu głównego repozytorium, w tej kolejności:
+
+```bash
+python pipeline/01_akwizycja.py
+python pipeline/02_walidacja.py
+python pipeline/03_swieta.py
+python pipeline/04_pogoda.py
+python pipeline/05_integracja.py
+python pipeline/06_model.py
+python pipeline/07_analiza.py
+```
+
+| Skrypt | Co robi |
+| --- | --- |
+| `01_akwizycja.py` | Pobiera CSV, scala je i zostawia kolumnę czasu startu |
+| `02_walidacja.py` | Sprawdza zakres dat i liczbę przejazdów |
+| `03_swieta.py` | Zbiera święta Illinois 2020–2022 |
+| `04_pogoda.py` | Pobiera temperaturę i opady, uzupełnia braki |
+| `05_integracja.py` | Agreguje dni, łączy tabele, koduje dzień tygodnia, standaryzuje pogodę |
+| `06_model.py` | Trenuje XGBoost (80/20), liczy MAE i R², zapisuje ważność cech |
+| `07_analiza.py` | Wykresy regresji: temperatura i opady vs. liczba wypożyczeń |
+
+Notatnik `notebooks/dokumentacja.ipynb` opisuje te same etapy. Komórki zakładają katalog roboczy w korzeniu repozytorium. Zapisane wyjścia pochodzą z pierwotnego przebiegu.
+
+### Wyniki
+
+Wykresy z ostatniego przebiegu:
+
+![Ważność cech](outputs/figures/waznosc_cech_xgboost.png)
+
+![Temperatura](outputs/figures/wplyw_temperatury.png)
+
+![Opady](outputs/figures/wplyw_opadow.png)
+
+Surowe CSV i Parquet nie są w gicie: poprzednia wersja miała puste placeholdery (0 bajtów). Odtwarza je skrypt `01` oraz kolejne etapy.
+
+## Ćwiczenia SQL
+
+Osobny materiał z zajęć, schemat HR w Oracle:
+
+| Plik | Zakres |
+| --- | --- |
+| `sql/cw01_schemat.sql` | Tabele, klucze, `FLASHBACK` |
+| `sql/cw02_zapytania.sql` | Odtworzenie schematu i zapytania |
+| `sql/cw03_analityczne.sql` | Funkcje okna, `sales` / `products` |
+| `sql/cw04_widoki.sql` | Widoki, DML, `WITH CHECK OPTION` |
+| `sql/cw05_plsql.sql` | Bloki anonimowe, kursory, procedury |
